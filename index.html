@@ -43,6 +43,7 @@
             display: flex;
             flex-direction: column;
             width: 100%;
+            height: 100vh; /* Добавлено для мобильных устройств */
         }
         
         header {
@@ -114,6 +115,9 @@
             padding-right: 5px;
             scroll-behavior: smooth;
             -webkit-overflow-scrolling: touch;
+            /* Добавлено для мобильных устройств */
+            max-height: calc(100vh - 250px);
+            min-height: 60vh;
         }
         
         .message {
@@ -155,6 +159,11 @@
             margin-top: auto;
             padding: 5px;
             align-items: center;
+            /* Добавлено для мобильных устройств */
+            position: sticky;
+            bottom: 0;
+            background-color: #f9f9f9;
+            z-index: 10;
         }
         
         #user-input {
@@ -170,6 +179,9 @@
             max-height: 120px;
             resize: none;
             overflow-y: auto;
+            /* Добавлено для мобильных устройств */
+            -webkit-appearance: none;
+            -webkit-border-radius: 25px;
         }
         
         #user-input:focus {
@@ -192,6 +204,9 @@
             align-items: center;
             justify-content: center;
             flex-shrink: 0;
+            /* Добавлено для мобильных устройств */
+            -webkit-appearance: none;
+            -webkit-border-radius: 25px;
         }
         
         #send-button:hover {
@@ -312,11 +327,19 @@
         @media (max-width: 480px) {
             .container {
                 padding: 8px;
+                height: auto;
+                min-height: 100vh;
             }
             
             .chat-container {
                 padding: 10px;
                 border-radius: 12px;
+                flex: 1 1 auto;
+            }
+            
+            .chat-messages {
+                max-height: calc(100vh - 220px);
+                min-height: calc(100vh - 220px);
             }
             
             .message {
@@ -345,6 +368,19 @@
             .quick-reply {
                 padding: 5px 10px;
                 font-size: 0.7rem;
+            }
+            
+            /* Специальные стили для iOS */
+            @supports (-webkit-touch-callout: none) {
+                .container {
+                    min-height: -webkit-fill-available;
+                    height: -webkit-fill-available;
+                }
+                
+                .chat-messages {
+                    max-height: calc(100vh - 220px);
+                    min-height: calc(100vh - 220px);
+                }
             }
         }
         
@@ -824,7 +860,7 @@
             const lowerMessage = message.toLowerCase();
             
             // Активация режима обучения
-            if (/(научи|обучи|запомни|добавь информацию)/.test(lowerMessage)) {
+            if (/(научи|обучи|запомни|добавь информация)/.test(lowerMessage)) {
                 dialogState.isLearningMode = true;
                 return "Хорошо, я готова учиться! Скажите, к какой категории относится новая информация? (игры, технологии, личное)";
             }
@@ -978,7 +1014,7 @@
                 // Обучение
                 else if (/как тебя научить|как добавить информацию|как обучить/.test(lowerMessage)) {
                     response = "Вы можете научить меня новой информации! Просто скажите:\n" +
-                               "1. \"Научи меня\" или \"Добавь информацию\"\n" +
+                               "1. \"Научи меня\" или \"Добавь информация\"\n" +
                                "2. Укажите категорию (игры, технологии, личное)\n" +
                                "3. Укажите тему\n" +
                                "4. Введите информацию, которую нужно запомнить\n\n" +
@@ -1125,6 +1161,24 @@
         
         // Обновляем счетчик каждую минуту
         setInterval(updateLimitCounter, 60000);
+        
+        // Добавляем обработчик для виртуальной клавиатуры на мобильных устройствах
+        if ('visualViewport' in window) {
+            const visualViewport = window.visualViewport;
+            
+            visualViewport.addEventListener('resize', function() {
+                // Проверяем, открыта ли клавиатура (высота viewport уменьшилась)
+                if (visualViewport.height < window.innerHeight) {
+                    // Прокручиваем чат вниз
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                    
+                    // Плавно перемещаем поле ввода в видимую область
+                    setTimeout(() => {
+                        userInput.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    }, 100);
+                }
+            });
+        }
     </script>
 </body>
 </html>
