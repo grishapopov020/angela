@@ -323,6 +323,38 @@
             font-weight: 500;
         }
         
+        /* Стили для кнопки озвучки */
+        .speech-controls {
+            display: flex;
+            gap: 5px;
+            margin-top: 5px;
+        }
+        
+        .speech-btn {
+            background-color: var(--secondary-color);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 3px 8px;
+            font-size: 0.6rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            transition: all 0.2s;
+        }
+        
+        .speech-btn:hover {
+            background-color: #8c7ae6;
+        }
+        
+        .speech-btn:active {
+            transform: scale(0.95);
+        }
+        
+        .speech-btn.active {
+            background-color: var(--accent-color);
+        }
+        
         /* Оптимизация для мобильных устройств */
         @media (max-width: 480px) {
             .container {
@@ -448,8 +480,20 @@
             learningData: {
                 category: null,
                 topic: null
+            },
+            speechSettings: {
+                enabled: true,
+                voice: null,
+                rate: 1.0,
+                pitch: 1.0,
+                volume: 1.0
             }
         };
+        
+        // Инициализация синтеза речи
+        let speechSynthesis = window.speechSynthesis;
+        let speechUtterance = null;
+        let voices = [];
         
         // База знаний с возможностью расширения
         let knowledgeBase = {
@@ -491,6 +535,97 @@
                 }
             }
         };
+        
+        // Инициализация голосового синтеза
+        function initSpeechSynthesis() {
+            // Проверяем поддержку API
+            if (!speechSynthesis) {
+                console.warn('Web Speech API не поддерживается в этом браузере');
+                addStatusMessage('Озвучка не поддерживается вашим браузером');
+                dialogState.speechSettings.enabled = false;
+                return;
+            }
+            
+            // Загружаем голоса (некоторые браузеры требуют времени для загрузки)
+            function loadVoices() {
+                voices = speechSynthesis.getVoices();
+                
+                // Пытаемся найти русский голос
+                const russianVoices = voices.filter(voice => 
+                    voice.lang.includes('ru') || voice.lang.includes('RU') || 
+                    voice.name.includes('Russian') || voice.name.includes('russian'));
+                
+                if (russianVoices.length > 0) {
+                    dialogState.speechSettings.voice = russianVoices[0];
+                } else if (voices.length > 0) {
+                    dialogState.speechSettings.voice = voices[0];
+                }
+                
+                // Если голоса не загрузились сразу, пробуем снова через 1 секунду
+                if (voices.length === 0) {
+                    setTimeout(loadVoices, 1000);
+                }
+            }
+            
+            // Слушаем событие изменения голосов
+            speechSynthesis.onvoiceschanged = loadVoices;
+            loadVoices();
+            
+            // Добавляем сообщение о готовности озвучки
+            if (speechSynthesis) {
+                addStatusMessage('Озвучка готова к использованию');
+            }
+        }
+        
+        // Озвучивание текста
+        function speakText(text) {
+            if (!dialogState.speechSettings.enabled || !speechSynthesis) return;
+            
+            // Останавливаем текущее воспроизведение, если есть
+            speechSynthesis.cancel();
+            
+            // Создаем новое высказывание
+            speechUtterance = new SpeechSynthesisUtterance(text);
+            
+            // Настраиваем параметры
+            speechUtterance.voice = dialogState.speechSettings.voice;
+            speechUtterance.rate = dialogState.speechSettings.rate;
+            speechUtterance.pitch = dialogState.speechSettings.pitch;
+            speechUtterance.volume = dialogState.speechSettings.volume;
+            speechUtterance.lang = 'ru-RU';
+            
+            // Обработчики событий
+            speechUtterance.onstart = function() {
+                console.log('Начало воспроизведения');
+            };
+            
+            speechUtterance.onend = function() {
+                console.log('Воспроизведение завершено');
+            };
+            
+            speechUtterance.onerror = function(event) {
+                console.error('Ошибка воспроизведения:', event.error);
+            };
+            
+            // Запускаем воспроизведение
+            speechSynthesis.speak(speechUtterance);
+        }
+        
+        // Остановка воспроизведения
+        function stopSpeech() {
+            if (speechSynthesis) {
+                speechSynthesis.cancel();
+            }
+        }
+        
+        // Переключение состояния озвучки
+        function toggleSpeech(enabled) {
+            dialogState.speechSettings.enabled = enabled;
+            if (!enabled) {
+                stopSpeech();
+            }
+            // Можно добавить сохранение состояния в localStorage
+        }
         
         // Обновление счетчика лимита
         function updateLimitCounter() {
@@ -694,6 +829,7 @@
         // Инициализация - загружаем сохраненные данные
         loadLearnedData();
         updateLimitCounter(); // Инициализация счетчика
+        initSpeechSynthesis(); // Инициализация синтеза речи
         
         // Эмоциональные реакции
         const emotionalResponses = {
@@ -805,11 +941,52 @@
                 messageElement.appendChild(moodElement);
             }
             
+            // Добавляем элементы управления озвучкой
+            const speechControls = document.createElement('div');
+            speechControls.className = 'speech-controls';
+            
+            const speakBtn = document.createElement('button');
+            speakBtn.className = 'speech-btn';
+            speakBtn.innerHTML = '🔊 Озвучить';
+            speakBtn.addEventListener('click', () => {
+                speakText(message.replace(/<br>/g, '\n').replace(/<\/?[^>]+(>|$)/g, ""));
+            });
+            
+            const stopBtn = document.createElement('button');
+            stopBtn.className = 'speech-btn';
+            stopBtn.innerHTML = '⏹ Стоп';
+            stopBtn.addEventListener('click', stopSpeech);
+            
+            const toggleBtn = document.createElement('button');
+            toggleBtn.className = `speech-btn ${dialogState.speechSettings.enabled ? 'active' : ''}`;
+            toggleBtn.innerHTML = dialogState.speechSettings.enabled ? '🔈 Авто' : '🔇 Авто';
+            toggleBtn.addEventListener('click', () => {
+                dialogState.speechSettings.enabled = !dialogState.speechSettings.enabled;
+                toggleBtn.classList.toggle('active');
+                toggleBtn.innerHTML = dialogState.speechSettings.enabled ? '🔈 Авто' : '🔇 Авто';
+                
+                if (dialogState.speechSettings.enabled) {
+                    speakText(message.replace(/<br>/g, '\n').replace(/<\/?[^>]+(>|$)/g, ""));
+                } else {
+                    stopSpeech();
+                }
+            });
+            
+            speechControls.appendChild(speakBtn);
+            speechControls.appendChild(stopBtn);
+            speechControls.appendChild(toggleBtn);
+            messageElement.appendChild(speechControls);
+            
             messageElement.appendChild(timestamp);
             chatMessages.appendChild(messageElement);
             
             // Сохраняем контекст
             dialogState.context.push({ role: 'bot', content: message });
+            
+            // Автоматически озвучиваем, если включено
+            if (dialogState.speechSettings.enabled) {
+                speakText(message.replace(/<br>/g, '\n').replace(/<\/?[^>]+(>|$)/g, ""));
+            }
             
             if (showQuickReplies) {
                 addQuickReplies();
